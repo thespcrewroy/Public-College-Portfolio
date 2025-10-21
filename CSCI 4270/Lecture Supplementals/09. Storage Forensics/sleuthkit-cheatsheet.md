@@ -75,59 +75,49 @@
 
 - **```blkls -f fat -b 512 -o START img > unalloc.dd```**: extracts all unallocated clusters (deleted files, slack space, etc) for carving
 - **```mmcat img part_num > unalloc.dd```**: reads and outputs all data from a given partition, creating a standalone filesystem image
-
-# Display slack space
-
-fcat -s filename -o START img
+- **```fcat -s filename -o START img```**: display slack space
 
 > [!NOTE]\
 > ➤ Allows you to view the inside of a file system
 
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#disk-gaps-unallocated-outside-filesystem)
 
----
+## Disk Gaps - Unallocated Outside Filesystem
+- **```mmls img```**: view layout
+- **```mmcat -i raw img 00 > primary_region.bin```**: slot 00 contains the MBR and post-MBR gap
+- **```mmcat -i raw img <slot_of_unallocated> > disk_unalloc.bin```**: mmcat by slot number preffered for unallocated memory at disk
+- **```binwalk disk_unalloc.bin```**: search for and extract files and code embedded within binary files
+- **```strings -n 8 disk_unalloc.bin | head```**: quickly preview readable text fragments embedded inside the binary
+- **```dd if=img bs=512 skip=$TAIL_START of=disk_tail.bin status=none```**: view layout by sector math
+- **```binwalk disk_tail.bin```**: 
 
-6. Disk Gaps / Unallocated Outside Any Filesystem (mmcat & dd)
+> [!TIP]\
+> ➤ Note down the partitions, or slots labeled *unallocated* and *primary table(#0)*.
 
----
+> [!NOTE]\
+> ➤ ```mmls```, ```mmcat```, ```binwalk``` and ```strings``` are run in squence to view layouts by slot number.
 
-# View layout with mmls; note slots labeled “Unallocated”, “Primary Table (#0)”, or partitions.
+> [!NOTE]\
+> ➤ ```dd```, ```binwalk```, ```binwalk``` and ```strings``` are run in squence to view layouts by sector math. <br>
+> Example numbers from mmls: ```P1_START``` = 2048, ```P1_SIZE``` = 24576. <br>
+> This means tail starts at 2048 + 24576 = 26624. <br>
+> ```TAIL_START = $((2048 + 24576))```.
 
-# A) mmcat by slot number (preferred for disk-level unallocated)
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#mounting)
 
-mmls img
-mmcat -i raw img 00 > primary_region.bin # slot 00: MBR + post-MBR gap
-mmcat -i raw img <slot_of_unallocated> > disk_unalloc.bin
-binwalk disk_unalloc.bin
-strings -n 8 disk_unalloc.bin | head
+## Mounting
+- **```sudo mount -o ro ${LOOP}p1 /mnt/p```**: mounts partition read-only at /mnt/p, allowing for safe browsing without altering evidence
+- **```sudo umount /mnt/p; sudo losetup -d "$LOOP"```**: unmounts and detaches the loop device after you’re done browsing the filesystem
 
-# B) dd by sector math (example with one partition)
 
-# Example numbers from mmls:
+> [!NOTE]\
+> For a quick peek into directories and files (does not include deleted information or information hidden in the slack).
 
-# P1_START=2048, P1_SIZE=24576 → tail starts at 2048+24576 = 26624
+> [!NOTE]\
+> For this example, the condtition must be: ```LOOP = $(sudo losetup --show -Pf --read-only img)```.
 
-TAIL_START=$((2048 + 24576))
-dd if=img bs=512 skip=$TAIL_START of=disk_tail.bin status=none
-binwalk disk_tail.bin
-
----
-
-7. Mounting for a Quick Peek (NOT for deleted/slack)
-
----
-
-# With losetup exposing partition devices (handy across tools)
-
-LOOP=$(sudo losetup --show -Pf --read-only img)
-sudo mount -o ro ${LOOP}p1 /mnt/p
-
-# ... browse ...
-
-sudo umount /mnt/p; sudo losetup -d "$LOOP"
-
----
-
-8. MBR / Partition Table Inspection
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#MBR-Partition-Table-Inspection)
+## MBR Partition Table Inspection
 
 ---
 
