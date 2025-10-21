@@ -33,7 +33,7 @@
 [![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#filesystem-metadata)
 
 ## Filesystem Metadata (sanity check)
-- **```fsstat -f fat -o START img | head -40```**: provides info about bytes/sector, sectors/cluster, label, FAT type, etc.
+- **```fsstat -f fat -o START img | head -40```**: show filesystem metadata (bytes/sector, sectors/cluster, label, FAT type, etc)
 - **```dd if=img bs=512 skip=START count=1 status=none | xxd -l 128```**: look for 'FAT' text hints (FAT16/FAT32)
 - **```dd if=img bs=512 skip=START count=1 status=none | tail -c 2 | xxd -p```**: expect 55aa at end of VBR
 
@@ -45,63 +45,44 @@
 > [!TIP]\
 > ➤ Use ```dd``` for boot sector spot checks to provide context.
 
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#directory-and-deleted-directory-listings)
+## Directory and Deleted Directory Listings
+- **```fls -o START img /```**: root listing
+- **```fls -o START -r img / > files.txt```**: recursive listing → file (good for grep/search)
+- **```fls -o START -rd img /```**: deleted only listing (method 1)
+- **```grep '^\*' files.txt```**: deleted only listing (method 2)
+- **```ifind -f fat -o START -n NAME.EXT img```**: find by exact matching name in this file system
 
-3. Directory Listings (incl. Deleted)
+> [!NOTE]\
+> ➤ Deleted entries prefixed with __'\*'__.
 
----
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#allocated-or-deleted-metadata-and-extraction)
 
-# Root listing (deleted entries prefixed with '\*')
+## Allocated or Intact Deleted File Metadata Extraction
+- **```istat -o START img <inode>```**: show metadata (MAC times, size, cluster runs)
+- **```icat -o START img <inode> > recovered.bin```**: extracts file metadata by inode from a disk image
+- **```file recovered.bin```**: identify file type of ```recovered.bin``` to determine steps for conversion from a binary file to a human readable file
+- **```strings -n 8 recovered.bin | head```**: quickly preview readable text fragments embedded inside the binary
+- **```mkdir out_all && tsk_recover -o START img out_all```**: bulk recovery of allocated files
+- **```mkdir out_unalloc && tsk_recover -o START -e img out_unalloc```**: bulk recovery carved from unallocated
 
-fls -o START img /
+> [!IMPORTANT]\
+> ➤ ```icat```, ```file```, and ```strings``` are run in sequence to extract file metadata by inode.
 
-# Recursive listing → file (good for grep/search)
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#unallocated-and-file-slack)
 
-fls -o START -r img / > files.txt
+## Unallocated and File Slack
 
-# Deleted only (two ways)
-
-fls -o START -rd img /
-grep '^\*' files.txt
-
-# Find by name (exact match in this FS)
-
-ifind -f fat -o START -n NAME.EXT img
-
----
-
-4. Metadata & Extraction (allocated or deleted)
-
----
-
-# Show metadata (MAC times, size, cluster runs)
-
-istat -o START img <inode>
-
-# Extract file content by inode (works for intact deleted files too)
-
-icat -o START img <inode> > recovered.bin
-file recovered.bin
-strings -n 8 recovered.bin | head
-
-# Bulk recovery
-
-mkdir out_all && tsk_recover -o START img out_all # allocated
-mkdir out_unalloc && tsk_recover -o START -e img out_unalloc # carved from unallocated
-
----
-
-5. Unallocated & File Slack (inside a filesystem)
-
----
-
-# Unallocated clusters (for carving)
-
-blkls -f fat -b 512 -o START img > unalloc.dd
-mmcat img part_num > unalloc.dd
+- **```blkls -f fat -b 512 -o START img > unalloc.dd```**: extracts all unallocated clusters (deleted files, slack space, etc) for carving
+- **```mmcat img part_num > unalloc.dd```**: reads and outputs all data from a given partition, creating a standalone filesystem image
 
 # Display slack space
 
 fcat -s filename -o START img
+
+> [!NOTE]\
+> ➤ Allows you to view the inside of a file system
+
 
 ---
 
