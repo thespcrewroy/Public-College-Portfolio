@@ -1,41 +1,50 @@
-# SLEUTH KIT (TSK) CHEATSHEET — FAT/FAT32 & GENERAL FS INVESTIGATION
+<h1 align="center">SLEUTH KIT (TSK) CHEATSHEET</h1>
 
-Always work READ-ONLY on copies. Record hashes, offsets, tool versions.
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#for-fat/fat32-&-general-fs-investigation)
 
-Legend:
-img = whole-disk image (MBR/GPT present)
-START = filesystem start sector (from mmls/sfdisk; often 2048)
-SECSZ = logical sector size (assume 512 unless known otherwise)
-<inode> = metadata address (from fls/ifind/istat)
+## For FAT/FAT32 & GENERAL FS INVESTIGATION
+- Always work with READ-ONLY on copies
+- **Record**: Hashes, Offsets, and Tool Versions
 
----
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#legend)
+## Legend
+- **```img```**: whole-disk image (MBR/GPT present)
+- **```START```**: filesystem start sector (from mmls/sfdisk; often 2048)
+- **```SECSZ```**: logical sector size (assume 512 unless known otherwise)
+- **```<inode>```**: metadata address (from fls/ifind/istat) <br>
 
-1. Find Volume Layout (Partitions & Offsets)
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#find-volume-layout)
+## Find Volume Layout (Partitions & Offsets)
+- **```mmls img```**: partition table
+- **```sfdisk -l img```**: alternative view
+- **```parted -s img unit s print```**: another option
 
----
+<br>
 
-mmls img # partition table; note START (sectors) per partition
-sfdisk -l img # alternative view
-parted -s img unit s print # another option
+> [!TIP]\
+> ➤ For ```mmls img```, note each of the ```START``` sectors per partition.
 
-# Tip: TSK commands use “-o START” in SECTORS (not bytes).
+> [!WARNING]\
+> ➤ TSK commands use ```-o START``` in SECTORS (not bytes).
 
-# OS mount uses byte offset: offset = START \* SECSZ.
+> [!NOTE]\
+> ➤ OS mount uses the byte offset: offset = ```START``` * ```SECSZ```.
 
----
+[![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png)](#filesystem-metadata)
 
-2. Filesystem Metadata (sanity check)
+## Filesystem Metadata (sanity check)
+- **```fsstat -f fat -o START img | head -40```**: provides info about bytes/sector, sectors/cluster, label, FAT type, etc.
+- **```dd if=img bs=512 skip=START count=1 status=none | xxd -l 128```**: look for 'FAT' text hints (FAT16/FAT32)
+- **```dd if=img bs=512 skip=START count=1 status=none | tail -c 2 | xxd -p```**: expect 55aa at end of VBR
 
----
+<br>
 
-fsstat -f fat -o START img | head -40 # bytes/sector, sectors/cluster, label, FAT type, etc.
+> [!TIP]\
+> ➤ Use ```fsstate``` as a sanity check.
 
-# Boot sector spot-checks (context)
+> [!TIP]\
+> ➤ Use ```dd``` for boot sector spot checks to provide context.
 
-dd if=img bs=512 skip=START count=1 status=none | xxd -l 128 # look for 'FAT' text hints (FAT16/FAT32)
-dd if=img bs=512 skip=START count=1 status=none | tail -c 2 | xxd -p # expect 55aa at end of VBR
-
----
 
 3. Directory Listings (incl. Deleted)
 
