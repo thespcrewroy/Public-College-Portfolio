@@ -1,6 +1,6 @@
 import json
 
-in_path = "new_project.ipynb"
+in_path = "crag-light.ipynb"
 out_path = "project_fixed.ipynb"
 
 with open(in_path, "r", encoding="utf-8") as f:
