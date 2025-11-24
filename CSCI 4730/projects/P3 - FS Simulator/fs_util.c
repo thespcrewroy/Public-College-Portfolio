@@ -98,9 +98,9 @@ int get_free_inode()
 int get_free_block()
 {
 	int i = 0; // loop counter
-	for(i = 0; i < MAX_BLOCK; i++) // loop through all blocks
+	for(i = 0; i < MAX_BLOCK; i++) // for each block used by the file
 	{
-		if(get_bit(blockMap, i) == 0) { // if the block is free
+		if (get_bit(blockMap, i) == 0) { // if the block is free
 			set_bit(blockMap, i, 1); // set the bit in the blockMap
 			superBlock.freeBlockCount--; // decrease freeBlockCount in superBlock
 			return i; // return the block number

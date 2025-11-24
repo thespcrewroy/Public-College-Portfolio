@@ -319,8 +319,7 @@ int file_cat(char *name)
 * @param size: number of bytes to read
 * @return: 0 on success, -1 on failure
 */
-int file_read(char *name, int offset, int size)
-{
+int file_read(char *name, int offset, int size) {
     int inodeNum, i, fileSize; // inode number, loop index, and file size
 	char str_buffer[BLOCK_SIZE]; // buffer to hold block data
 	char * str; // pointer to hold file data
@@ -328,7 +327,6 @@ int file_read(char *name, int offset, int size)
 
     // 1. Get Inode Number From search_cur_dir(char *name)
     inodeNum = search_cur_dir(name); // search for file in current directory
-	fileSize = inode[inodeNum].size; // get file size
 
 	// 2. Validation Check and Error Handling
 	// Check if I-Node Number is Valid
@@ -336,6 +334,8 @@ int file_read(char *name, int offset, int size)
 			printf("read error: file not found\n"); // print error message
 			return -1; // return error
 	} // if
+
+	fileSize = inode[inodeNum].size; // get file size
 
 	// Check If It Is a File or Directory
 	if (inode[inodeNum].type == directory) { // if inode is a directory
@@ -393,17 +393,15 @@ int file_read(char *name, int offset, int size)
         curOffset += canCopy; // increase current offset in file (continue down the file)
     } // while
 
-    /* 4. Print result */
-    printf("%s\n", str);
+    printf("%s\n", str); // print the read data from the buffer
 
-    /* 5. Update last access time */
-    gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+    /* 5. Update I-Node for Last Access Time */
+    gettimeofday(&(inode[inodeNum].lastAccess), NULL); // update last access time
 
-    /* 6. Cleanup */
-    free(str);
+    free(str); // free allocated memory
 
-    return 0;
-}
+    return 0; // return success
+} // file_read
 
 
 /*
@@ -439,67 +437,358 @@ int file_stat(char *name)
 		printf("Last acc. time\t= %s\n", timebuf); // print last access time
 } // file_stat
 
-int file_remove(char *name)
-{
-		printf("Error: rm is not implemented.\n");
-		return 0;
-}
+/*
+* Delete <name> file
+* Ceck valid requests and invalid requests
+* Handle link_count
+* 1) If link_count == 1
+* 2) If link_count > 1?
+* Adjust directory entry array (see Dentry in fs.h) 
+* 1) curDir.dentry[i]
+* 2) curDir.numEntry
+* Clean up inode bitmap and data bitmap by using set_bit() in fs_util.c
+*
+* Superblock
+* 1) freeInodeCount, freeBlockCount
+* 2)Should be opposite of get_free_inode() and get_free_block() in fs_util.c
+*
+* Procedure
+* 1) Get inode number of the file you want to delete from the search_cur_dir(char *name)
+* 2) Validation check & error handling (e.g., size, offset, type)
+* 3) Adjust adjust directory entry array
+* - curDir.dentry[i]
+* - curDir.numEntry
+* 4) Update last update time for the current directory
+* 5) If there are hard links? Can you delete the file?
+* 6) Free data blocks Dmap & superblock
+* 7) Free inode block InodeMap & superblock
+*
+* @param name: name of the file to delete
+* @return: 0 on success, -1 on failure
+*/
+int file_remove(char *name) {
+	int i, inodeNum; // inode number and loop index
+	int index = -1; // index of directory entry to remove
 
-int dir_make(char* name)
-{
-		printf("Error: mkdir is not implemented.\n");
-		return 0;
-}
+    // 1. Get Inode Number From search_cur_dir(char *name)
+    inodeNum = search_cur_dir(name); // search for file in current directory
 
+	// 2. Validation Check and Error Handling
+	// Check if I-Node Number is Valid
+	if (inodeNum < 0) { // if file not found
+			printf("rm error: file not found\n"); // print error message
+			return -1; // return error
+	} // if
+
+	// Check If It Is a File or Directory
+	if (inode[inodeNum].type == directory) { // if inode is a directory
+			printf("rm error: cannot remove directory with rm (use rmdir)\n"); // print error message
+			return -1;
+	} // if
+
+    // 3. Adjust Directory Entry Array
+    for (i = 0; i < curDir.numEntry; i++) { // for each entry in current directory
+        if (command(name, curDir.dentry[i].name) &&
+           curDir.dentry[i].inode == inodeNum) { // if name matches and inode number matches
+            index = i; // store index of entry to remove
+            break; // break loop
+        } // if
+    } // for
+
+    if(index < 0) { // if entry not found
+        printf("rm error: directory entry not found\n"); // print error message
+        return -1; // return error
+    } // if
+
+    for (i = index; i < curDir.numEntry - 1; i++) { // for each entry after the one to remove
+        curDir.dentry[i] = curDir.dentry[i+1]; // shift entries left to fill the gap */
+    } // for
+    curDir.numEntry--; // decrease number of entries
+
+    // 4. If There Are Hard Links? Can You Delete the File?
+    // If link_count > 1: only remove this directory entry and decrease link_count, but DO NOT free blocks or inode as it is hard linked to other names.
+    // If link_count == 1: free data blocks and inode.
+    if (inode[inodeNum].link_count > 1) { // if there are hard links
+        inode[inodeNum].link_count--; // decrease link count
+    } else { // if link_count == 1
+        // 5. Free Data Blocks (Dmap & Superblock) - Opposite of get_free_block() in fs_util.c
+        for (i = 0; i < inode[inodeNum].blockCount; i++) { // for each block used by the file
+            int block = inode[inodeNum].directBlock[i]; // get block number
+            if (block >= 0) { // if block is valid
+                set_bit(blockMap, block, 0); // mark block as free to clean up data bitmap - fs_util.c
+                superBlock.freeBlockCount++; // increase free block count in superblock
+            } // if
+        } // for
+
+        // 6. Free Inode Block (InodeMap & Superblock) - Opposite of get_free_inode() in fs_util.c
+        set_bit(inodeMap, inodeNum, 0); // mark inode as free to clean up inode bitmap - fs_util.c
+        superBlock.freeInodeCount++; // increase free inode count in superblock
+        memset(&inode[inodeNum], 0, sizeof(Inode)); // clear inode data
+    } // if
+
+    // 7. Update Last Update Time for the Current Directory
+    gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update last access time of current directory
+
+    printf("file removed: %s\n", name); // print success message
+    return 0; // return success
+} // file_remove
+
+/*
+ * Create a sub-directory <name> under the current directory.
+ * I-node initialization: refer to fs_mount(argv[1]) in fs.c
+ *
+ * Procedure:
+ * 1) Check if request is valid:
+ *    - name not empty / not "." or ".."
+ *    - name does not already exist
+ *    - curDir.numEntry < MAX_DIR_ENTRY
+ *    - enough free inodes / blocks in superBlock
+ * 2) Get available inode # (get_free_inode)
+ * 3) Get new data block (get_free_block) - refer to fs_mount()
+ * 4) Initialize inode as a directory (similar to fs_mount root dir)
+ * 5) Initialize new directory block:
+ *      entry 0: "."
+ *      entry 1: ".."
+ * 6) Add new entry to current directory (curDir)
+ * 7) Update last access time of current directory
+ * 
+ * @param name: name of the new directory
+ * @return: 0 on success, -1 on failure
+ */
+int dir_make(char *name)
+{
+    int i, inodeNum, block;; // loop index, inode number, and block number
+    Dentry newDir; // new directory entry
+
+    // Check If Request Is Valid
+    if (name == NULL || strlen(name) == 0) { // if name is empty
+        printf("mkdir error: invalid name\n"); // print error message
+        return -1; // return error
+    } // if
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) { // if name is "." or ".."
+        printf("mkdir error: cannot use reserved names '.' or '..'\n"); // print error message
+        return -1; // return error
+    } // if
+    if (search_cur_dir(name) >= 0) { // if name already exists in current directory
+        printf("mkdir error: %s already exists\n", name); // print error message
+        return -1; // return error
+    } // if
+    if (curDir.numEntry >= MAX_DIR_ENTRY) { // if current directory is full
+        printf("mkdir error: directory is full\n"); // print error message
+        return -1; // return error
+    } // if	
+    if (superBlock.freeInodeCount < 1) { // if not enough free inodes
+        printf("mkdir error: no free inodes\n"); // print error message
+        return -1; // return error
+    } // if
+    if (superBlock.freeBlockCount < 1) { // if not enough free blocks
+        printf("mkdir error: no free data blocks\n"); // print error message
+        return -1; // return error
+    } // if	
+
+    // 2. Get Available Inode #
+    inodeNum = get_free_inode(); // get free inode number
+    if (inodeNum < 0) { // if no free inode
+        printf("mkdir error: get_free_inode failed\n"); // print error message
+        return -1; // return error
+    } // if	
+
+    // New Direct Data Block
+    block = get_free_block(); // get free block number
+    if (block < 0) { // if no free block
+        printf("mkdir error: get_free_block failed\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 4. Initialize Inode as a Directory
+    inode[inodeNum].type = directory; // set type to directory
+    inode[inodeNum].owner = 0; // pre-defined
+    inode[inodeNum].group = 0; // pre-defined
+    gettimeofday(&(inode[inodeNum].created), NULL); // set creation time
+    gettimeofday(&(inode[inodeNum].lastAccess), NULL); // set last access time
+    inode[inodeNum].size = 2; // size = 2 entries (".", "..")
+    inode[inodeNum].blockCount = 1; // block count = 1
+    inode[inodeNum].directBlock[0] = block; // set direct block to new block
+    inode[inodeNum].link_count = 1; // link count = 1
+
+    // 5 Set Directory Entries for New Directory
+    newDir.numEntry = 2; // number of entries = 2
+
+    // 6. Initialize "." and ".." entries
+	// "." entry (self)
+    strncpy(newDir.dentry[0].name, ".", 1); // set name of "." entry
+    newDir.dentry[0].name[1] = '\0'; // null terminate string
+    newDir.dentry[0].inode = inodeNum; // set inode to new directory's inode
+
+    // ".." entry (parent)
+    strncpy(newDir.dentry[1].name, "..", 2); // set name of ".." entry
+    newDir.dentry[1].name[2] = '\0'; // null terminate string
+    newDir.dentry[1].inode = curDir.dentry[0].inode; // set inode to parent directory's inode
+
+    // Initialize Remaining Entries to Empty Just in Case
+    for (i = 2; i < MAX_DIR_ENTRY; i++) { // for remaining entries
+        newDir.dentry[i].name[0] = '\0'; // set name to empty
+        newDir.dentry[i].inode = 0; // set inode to 0
+    } // for
+
+    // Write New Directory Block to Disk
+    disk_write(block, (char *)&newDir); // write new directory to disk
+
+    // 8. Add New Entry to Current Directory (curDir)
+    strncpy(curDir.dentry[curDir.numEntry].name, name, MAX_FILE_NAME - 1); // set name of new directory
+    curDir.dentry[curDir.numEntry].name[MAX_FILE_NAME - 1] = '\0'; // null terminate string
+    curDir.dentry[curDir.numEntry].inode = inodeNum; // set inode to new directory's inode
+    curDir.numEntry++; // increment number of entries in current directory
+
+    gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update last access time of current directory
+    printf("directory created: %s (inode %d)\n", name, inodeNum); // print success message
+    return 0; // return success
+} // dir_make
+
+
+/*
+ * Remove the sub-directory <name> under the current directory.
+ *
+ * Opposite of dir_make():
+ * 1) Get inode number of the directory from search_cur_dir(name)
+ * 2) Validation:
+ *    - it exists
+ *    - it is a directory (not file)
+ *    - name is not "." or ".."
+ *    - directory is empty (only "." and "..")
+ * 3) Remove its entry from current directory (curDir.dentry / curDir.numEntry)
+ * 4) Free its data block (blockMap & superBlock)
+ * 5) Free its inode (inodeMap & superBlock)
+ * 6) Update last access/update time of current directory
+ * 
+ * @param name: name of the directory to remove
+ * @return: 0 on success, -1 on failure
+ */
 int dir_remove(char *name)
 {
-		printf("Error: rmdir is not implemented.\n");
-		return 0;
-}
+    int inodeNum, i; // inode number and loop index
+    int index = -1; // index of directory entry to remove
+    int block; // data block number
+    Dentry targetDir; // target directory entry
 
+    // 1. Get Inode Number From search_cur_dir(name)
+    inodeNum = search_cur_dir(name); // search for directory in current directory
+    if (inodeNum < 0) { // if directory not found
+        printf("rmdir error: directory not found\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 2. Validation Check and Error Handling
+    if (inode[inodeNum].type != directory) { // if inode is not a directory
+        printf("rmdir error: %s is not a directory\n", name); // print error message
+        return -1; // return error
+    } // if
+
+    // 3. Do not allow removing "." or ".." explicitly
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) { // if name is "." or ".."
+        printf("rmdir error: cannot remove '.' or '..'\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // Check If Directory Is Empty (Only "." and "..")
+    block = inode[inodeNum].directBlock[0]; // get data block of target directory
+    disk_read(block, (char *)&targetDir); // read target directory from disk
+
+    // Directory is not empty if it has more than 2 entries (".", "..")
+    if (targetDir.numEntry > 2) { // if directory is not empty
+        printf("rmdir error: directory not empty\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 4. Remove Its Entry From Current Directory (curDir.dentry / curDir.numEntry)
+    for (i = 0; i < curDir.numEntry; i++) { // for each entry in current directory
+        if (command(name, curDir.dentry[i].name) &&
+            curDir.dentry[i].inode == inodeNum) { // if name matches and inode number matches
+            index = i; // store index of entry to remove
+            break; // break loop
+        } // if
+    } // for
+
+    if (index < 0) { // if entry not found
+        printf("rmdir error: directory entry not found in parent\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // Shift Entries Left to Fill the Gap
+    for (i = index; i < curDir.numEntry - 1; i++) { // for each entry after the one to remove
+        curDir.dentry[i] = curDir.dentry[i + 1]; // shift entries left to fill the gap
+    } // for
+    curDir.numEntry--; // decrease number of entries
+
+
+    set_bit(blockMap, block, 0); // free data block (bitmap)
+    superBlock.freeBlockCount++; // increase free block count in superblock
+    set_bit(inodeMap, inodeNum, 0); // free inode (bitmap)
+    superBlock.freeInodeCount++; // increase free inode count in superblock
+    memset(&inode[inodeNum], 0, sizeof(Inode)); // clear inode data
+    gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update last access time of current directory
+
+    printf("directory removed: %s\n", name); // print success message
+    return 0; // return success
+} // dir_remove
+
+
+/*
+* Change the current directory to <name>.
+*
+* @param name: name of the directory to change to
+* @return: 0 on success, -1 on failure
+*/
 int dir_change(char* name)
 {
-		int inodeNum, i;
+		int inodeNum, i; // inode number and loop index
 
-		//get inode number
-		inodeNum = search_cur_dir(name);
-		if (inodeNum < 0) 
+		// Get Inode Number
+		inodeNum = search_cur_dir(name); // search for directory in current directory
+		if (inodeNum < 0)  // if directory not found
 		{
-				printf("cd error: %s does not exist\n", name);
-				return -1;
-		}
-		if (inode[inodeNum].type != directory)
+				printf("cd error: %s does not exist\n", name); // print error message
+				return -1; // return error
+		} // if
+		if (inode[inodeNum].type != directory) // if inode is not a directory
 		{
-				printf("cd error: % is not a directory\n", name);
-				return -1;
-		}
+				printf("cd error: % is not a directory\n", name); // print error message
+				return -1; // return error
+		} // if
 
-		//write parent directory (curDir) to disk
-		disk_write(curDirBlock, (char*)&curDir);
+		disk_write(curDirBlock, (char*)&curDir); // write parent directory (curDir) to disk
+		curDirBlock = inode[inodeNum].directBlock[0]; // get new directory block number
+		disk_read(curDirBlock, (char*)&curDir); // read new directory from disk into curDir
 
-		//read new directory from disk into curDir
-		curDirBlock = inode[inodeNum].directBlock[0];
-		disk_read(curDirBlock, (char*)&curDir);
+		
+		gettimeofday(&(inode[inodeNum].lastAccess), NULL); // update last access of directory we are changing to
 
-		//update last access of directory we are changing to
-		gettimeofday(&(inode[inodeNum].lastAccess), NULL);		
+		return 0; // return success
+} // dir_change
 
-		return 0;
-}
-
+/*
+* Show the content of the current directory.
+* For each entry, show:
+* - type (file or dir)
+* - name
+* - inode number
+* - size in bytes
+*
+* @return: 0 on success
+*/
 int ls()
 {
-		int i;
-		for(i = 0; i < curDir.numEntry; i++)
+		int i; // loop index
+		for (i = 0; i < curDir.numEntry; i++) // for each entry in current directory
 		{
-				int n = curDir.dentry[i].inode;
-				if(inode[n].type == file) printf("type: file, ");
-				else printf("type: dir, ");
-				printf("name \"%s\", inode %d, size %d byte\n", curDir.dentry[i].name, curDir.dentry[i].inode, inode[n].size);
-		}
+				int n = curDir.dentry[i].inode; // get inode number
+				if(inode[n].type == file) printf("type: file, "); // print type of file
+				else printf("type: dir, "); // print type of directory
+				printf("name \"%s\", inode %d, size %d byte\n", curDir.dentry[i].name, curDir.dentry[i].inode, inode[n].size); // print name, inode number, and size
+		} // for
 
-		return 0;
-}
+		return 0; // return success
+} // ls
 
 /*
 * Show file system information
@@ -512,11 +801,79 @@ int fs_stat()
 		printf("# of free blocks: %d (%d bytes), # of free inodes: %d\n", superBlock.freeBlockCount, superBlock.freeBlockCount*512, superBlock.freeInodeCount); // print free blocks and inodes
 } // fs_stat
 
+/*
+* Create a hard link.
+* “src_file” and “new_file” should be located in the same directory
+*
+* Procedure:
+* 1) Check: search_cur_dir(char *name)
+* - src: existing file
+* - dest: new file (not existing in fs)
+* 2) Available directory entry should be able to add new “dest” (MAX_DIR_ENTRY_BLOCK)
+* 3) Both src and dest must point the same i-node
+* 4) curDir.dentry[xxx].name ← dest’s name
+* 5) curDir.dentry[xxx].inode ← src’s name
+* 6) Increase the link_count of the source i-node
+* 7) Update last access/update time for current directory
+*
+* @param src: source file name
+* @param dest: destination file name
+* @return: 0 on success, -1 on failure
+*/
 int hard_link(char *src, char *dest)
 {
-		printf("Error: ln is not implemented.\n");
-		return 0;
-}
+    int srcInode, destInode; // inode numbers for source and destination
+    int i; // loop index
+
+    // 1. Valid Arguments Check
+    if (src == NULL || dest == NULL) { // if src or dest is NULL
+        printf("ln error: invalid arguments\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 2. Check: search_cur_dir(char *name)
+    srcInode = search_cur_dir(src); // search for source file in current directory
+    destInode = search_cur_dir(dest); // search for destination file in current directory
+
+	// Source Must Exist
+    if (srcInode < 0) { // if source file not found
+        printf("ln error: source file not found\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // Dest Must NOT Exist
+    if (destInode >= 0) { // if destination file already exists
+        printf("ln error: destination file already exists\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // Src Must Be a File (NOT Directory)
+    if (inode[srcInode].type == directory) { // if source is a directory
+        printf("ln error: cannot create hard link to a directory\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 2. Check Available Directory Entry
+    if(curDir.numEntry >= MAX_DIR_ENTRY) { // if directory is full
+        printf("ln error: directory is full\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // 3. Both src and dest Must Point to the Same I-Node
+    i = curDir.numEntry; // get index for new entry
+    strncpy(curDir.dentry[i].name, dest, MAX_FILE_NAME - 1); // set destination name
+    curDir.dentry[i].name[MAX_FILE_NAME - 1] = '\0';  // ensure null-terminated
+    curDir.dentry[i].inode = srcInode; // set inode number to source inode
+    curDir.numEntry++; // increment number of entries
+
+    // 4. Increase the link_count of the Source I-Node
+    inode[srcInode].link_count++; // increment link count
+
+    gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update last access time for current directory
+	printf("hard link created: %s -> %s (inode %d)\n", dest, src, srcInode); // print success message
+    return 0; // return success
+} // hard_link
+
 
 /*
 * Execute a command with arguments.

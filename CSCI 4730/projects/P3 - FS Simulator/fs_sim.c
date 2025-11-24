@@ -1,3 +1,4 @@
+#include <stdlib.h> // for srand, rand, NULL
 #include <stdio.h> // for printf, fprintf, stderr
 #include <string.h> // for strlen, strncmp, bzero
 #include <time.h> // for time functions
