@@ -139,6 +139,8 @@ int search_cur_dir(char *name)
 
 /*
 * Create a new file in the current directory.
+* Create a file with <filename> as a name in the current directory
+* Fill the file with <size> of random sting
 *
 * @param name: name of the new file
 * @param size: size of the new file in bytes
@@ -169,6 +171,7 @@ int file_create(char *name, int size)
 				return -1; // return error
 		} // if
 
+		// Calculate Data Block Size
 		int numBlock = size / BLOCK_SIZE; // calculate number of blocks needed
 		if(size % BLOCK_SIZE > 0) numBlock++; // if size is not a multiple of BLOCK_SIZE, add one more block
 
@@ -182,18 +185,20 @@ int file_create(char *name, int size)
 				return -1; // return error
 		} // if
 
+		// Create File Context With Random String
 		char *tmp = (char*) malloc(sizeof(int) * size + 1); // allocate memory for file data
 
 		rand_string(tmp, size); // generate random string for file data
 		printf("New File: %s\n", tmp); // print new file data
 
-		// Get Inode and Fill It
+		// Get Inode Number for This File
 		inodeNum = get_free_inode(); // get free inode number
 		if (inodeNum < 0) { // if no free inode
 				printf("File_create error: not enough inode.\n"); // invalid inode
 				return -1; // return error
 		} // if
 
+		// Update I-Node Entry Info
 		inode[inodeNum].type = file; // set type to file
 		inode[inodeNum].owner = 1;  // pre-defined
 		inode[inodeNum].group = 2;  // pre-defined
@@ -220,97 +225,219 @@ int file_create(char *name, int size)
 				} // if
 				
 				inode[inodeNum].directBlock[i] = block; // set direct block pointer
-				disk_write(block, tmp+(i*BLOCK_SIZE)); // write data to block
+				disk_write(block, tmp+(i*BLOCK_SIZE)); // disk write data to block
 		} // for
 
-		gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update last access time of current directory
+		gettimeofday(&(inode[curDir.dentry[0].inode].lastAccess), NULL); // update inode one more time with the last access time of current directory
 		printf("file created: %s, inode %d, size %d\n", name, inodeNum, size); // print success message
 		free(tmp); // free allocated memory
 		return 0; // return success
 } // file_create
 
+/*
+* Display the contents of a file.
+* Print out the content of the file
+*
+* @param name: name of the file to display
+* @return: 0 on success, -1 on failure
+*/
 int file_cat(char *name)
 {
-		int inodeNum, i, size;
-		char str_buffer[512];
-		char * str;
+		int inodeNum, i, size; // inode number, loop index, and file size
+		char str_buffer[512]; // buffer to read data from disk
+		char * str; // pointer to hold file data
 
-		//get inode
-		inodeNum = search_cur_dir(name);
-		size = inode[inodeNum].size;
+		// Get Inode
+		inodeNum = search_cur_dir(name); // search for file in current directory
+		size = inode[inodeNum].size; // get file size
 
-		//check if valid input
-		if(inodeNum < 0)
+		// Check if Valid Input
+		if (inodeNum < 0) // if file not found
 		{
-				printf("cat error: file not found\n");
-				return -1;
-		}
-		if(inode[inodeNum].type == directory)
+				printf("cat error: file not found\n"); // print error message
+				return -1; // return error
+		} // if
+		if (inode[inodeNum].type == directory) // if inode is a directory
 		{
-				printf("cat error: cannot read directory\n");
+				printf("cat error: cannot read directory\n"); // print error message
 				return -1;
-		}
+		} // if
 
-		//allocate str
-		str = (char *) malloc( sizeof(char) * (size+1) );
-		str[ size ] = '\0';
+		// Allocate String
+		str = (char *) malloc( sizeof(char) * (size + 1)); // allocate memory for file data
+		str[ size ] = '\0'; // null terminate string
 
-		for( i = 0; i < inode[inodeNum].blockCount; i++ ){
-				int block;
-				block = inode[inodeNum].directBlock[i];
+		for (i = 0; i < inode[inodeNum].blockCount; i++ ) { // for each block used by the file
+				int block; // block number
+				block = inode[inodeNum].directBlock[i]; // get block number
 
-				disk_read( block, str_buffer );
+				disk_read( block, str_buffer ); // read block data into buffer
 
-				if( size >= BLOCK_SIZE )
+				if( size >= BLOCK_SIZE ) // if remaining size is greater than or equal to BLOCK_SIZE
 				{
-						memcpy( str+i*BLOCK_SIZE, str_buffer, BLOCK_SIZE );
-						size -= BLOCK_SIZE;
+						memcpy( str+i*BLOCK_SIZE, str_buffer, BLOCK_SIZE ); // copy full block to string
+						size -= BLOCK_SIZE; // decrease remaining size
 				}
-				else
+				else // else if remaining size is less than BLOCK_SIZE
 				{
-						memcpy( str+i*BLOCK_SIZE, str_buffer, size );
-				}
-		}
-		printf("%s\n", str);
+						memcpy( str+i*BLOCK_SIZE, str_buffer, size ); // copy remaining size to string
+				} // else
+		} // for
 
-		//update lastAccess
-		gettimeofday( &(inode[inodeNum].lastAccess), NULL );
+		printf("%s\n", str); // print file data
+		gettimeofday( &(inode[inodeNum].lastAccess), NULL ); // update last access time
+		free(str); // free allocated memory
+		return 0; //return success
+} // file_cat
 
-		free(str);
-
-		//return success
-		return 0;
-}
-
+/*
+* Read <size> bytes from the <offset> of the file <name>
+* file_cat(char * name) will give you a lot of hints on this functions’ implementation
+* Should support random read
+* Obtain i-node number: Use int search_cur_dir(char *name) in fs.c
+*
+* Then check (refer to file_cat(char * name))
+* 1) if i-node # is valid
+* 2) if it is a file or directory
+* 3) if size of read request is valid
+*
+* Inode array’s direct block has the file context
+* 1) Use disk_read() in disk.c
+* 2) Do not directly printf() the block context
+* 3) Define a new local variable (with malloc) and use memcpy (refer to file_cat(char * name))
+*
+* Procedure:
+* 1) Get inode number from search_cur_dir(char *name)
+* 2) Validation check & error handling (e.g., size, offset, type)
+* 3) Create buffer with malloc, last index = ‘\0’
+* 4) Decide read block and offset with inode number, block index, and check inode struct
+* 5) Disk read & memcpy, multiblock read
+* 6) Update i-node for last access time
+* 
+* @param name: name of the file to read
+* @param offset: offset to start reading from
+* @param size: number of bytes to read
+* @return: 0 on success, -1 on failure
+*/
 int file_read(char *name, int offset, int size)
 {
-		printf("Error: read is not implemented.\n");
-		return 0;
+    int inodeNum, i, fileSize; // inode number, loop index, and file size
+	char str_buffer[BLOCK_SIZE]; // buffer to hold block data
+	char * str; // pointer to hold file data
+    int remaining, bufPos, curOffset;
+
+    // 1. Get Inode Number From search_cur_dir(char *name)
+    inodeNum = search_cur_dir(name); // search for file in current directory
+	fileSize = inode[inodeNum].size; // get file size
+
+	// 2. Validation Check and Error Handling
+	// Check if I-Node Number is Valid
+	if (inodeNum < 0) { // if file not found
+			printf("read error: file not found\n"); // print error message
+			return -1; // return error
+	} // if
+
+	// Check If It Is a File or Directory
+	if (inode[inodeNum].type == directory) { // if inode is a directory
+			printf("read error: cannot read directory\n"); // print error message
+			return -1;
+	} // if
+   
+	// Check If Size of Read Request is Valid
+    if (offset < 0 || size < 0) { // if offset or size is negative
+        printf("read error: invalid offset or size\n"); // print error message
+        return -1; // return error
+    } // if
+    if (offset >= fileSize) { // if offset is beyond end of file
+        printf("read error: offset beyond end of file\n"); // print error message
+        return -1; // return error
+    } // if
+
+    // Check if requested size goes beyond end of file
+    if (offset + size > fileSize) { // if offset + size is beyond end of file
+        printf("read error: read size goes beyond end of file\n"); // display error message
+        return -1; // return error
+    } // if
+
+    // 3. Allocate buffer With malloc (last index = ‘\0’)
+	str = (char *) malloc( sizeof(char) * (size + 1)); // allocate memory for file data
+    if(str == NULL) { // if malloc failed
+        printf("read error: malloc failed\n"); // print error message
+        return -1; // return error
+    } // if
+    str[size] = '\0';
+
+	// 4. Decide Read Block and Offset with: inode number, block index, and check inode struct
+    remaining = size; // bytes remaining to read
+    bufPos = 0; // position in buffer
+    curOffset = offset; // current offset in file
+
+    while(remaining > 0) { // while there are bytes remaining to read
+        int blockIndex = curOffset / BLOCK_SIZE; // get block index
+        int blockOffset = curOffset % BLOCK_SIZE; // get offset within block
+        int block = inode[inodeNum].directBlock[blockIndex]; // get block number
+        int canCopy; // track number of bytes we can copy from this block
+
+		// 5. Disk Read & memcpy, Multiblock Read
+        disk_read(block, str_buffer); // read data of the block into buffer
+
+        canCopy = BLOCK_SIZE - blockOffset; // calculate how many bytes we can copy from this block
+        if(canCopy > remaining) { // if we are able to copy more than remaining bytes left to read
+            canCopy = remaining; // adjust the bytes we can copy, to make it equal to remaining bytes (no over-read)
+        } // if
+
+        memcpy(str + bufPos, str_buffer + blockOffset, canCopy); // copy data from buffer to string
+
+        remaining -= canCopy; // decrease remaining bytes to read
+        bufPos    += canCopy; // increase buffer position
+        curOffset += canCopy; // increase current offset in file (continue down the file)
+    } // while
+
+    /* 4. Print result */
+    printf("%s\n", str);
+
+    /* 5. Update last access time */
+    gettimeofday(&(inode[inodeNum].lastAccess), NULL);
+
+    /* 6. Cleanup */
+    free(str);
+
+    return 0;
 }
 
 
+/*
+* Show the following metadata of the file or directory
+* - I-node information
+* - File or directory
+* - # of blocks allocated
+* - Other info stored about this file/directory
+*
+* @param name: name of the file to show info
+* @return: 0 on success, -1 on failure
+*/
 int file_stat(char *name)
 {
-		char timebuf[28];
-		int inodeNum = search_cur_dir(name);
-		if(inodeNum < 0) {
-				printf("file cat error: file is not exist.\n");
-				return -1;
-		}
+		char timebuf[28]; // buffer to hold formatted time
+		int inodeNum = search_cur_dir(name); // search for file in current directory
+		if (inodeNum < 0) { // if file not found
+				printf("file cat error: file is not exist.\n"); // print error message
+				return -1; // return error
+		} // if
 
-		printf("Inode\t\t= %d\n", inodeNum);
-		if(inode[inodeNum].type == file) printf("type\t\t= File\n");
-		else printf("type\t\t= Directory\n");
-		printf("owner\t\t= %d\n", inode[inodeNum].owner);
-		printf("group\t\t= %d\n", inode[inodeNum].group);
-		printf("size\t\t= %d\n", inode[inodeNum].size);
-		printf("link_count\t= %d\n", inode[inodeNum].link_count);
-		printf("num of block\t= %d\n", inode[inodeNum].blockCount);
-		format_timeval(&(inode[inodeNum].created), timebuf, 28);
-		printf("Created time\t= %s\n", timebuf);
-		format_timeval(&(inode[inodeNum].lastAccess), timebuf, 28);
-		printf("Last acc. time\t= %s\n", timebuf);
-}
+		printf("Inode\t\t= %d\n", inodeNum); // print inode number
+		if(inode[inodeNum].type == file) printf("type\t\t= File\n"); // print file type
+		else printf("type\t\t= Directory\n"); // print file type
+		printf("owner\t\t= %d\n", inode[inodeNum].owner); // print owner
+		printf("group\t\t= %d\n", inode[inodeNum].group); // print group
+		printf("size\t\t= %d\n", inode[inodeNum].size); // print size
+		printf("link_count\t= %d\n", inode[inodeNum].link_count); // print link count
+		printf("num of block\t= %d\n", inode[inodeNum].blockCount); // print number of blocks
+		format_timeval(&(inode[inodeNum].created), timebuf, 28); // format creation time
+		printf("Created time\t= %s\n", timebuf); // print creation time
+		format_timeval(&(inode[inodeNum].lastAccess), timebuf, 28); // format last access time
+		printf("Last acc. time\t= %s\n", timebuf); // print last access time
+} // file_stat
 
 int file_remove(char *name)
 {
@@ -374,11 +501,16 @@ int ls()
 		return 0;
 }
 
+/*
+* Show file system information
+* - # of free blocks
+* - # of free i-nodes
+*/
 int fs_stat()
 {
-		printf("File System Status: \n");
-		printf("# of free blocks: %d (%d bytes), # of free inodes: %d\n", superBlock.freeBlockCount, superBlock.freeBlockCount*512, superBlock.freeInodeCount);
-}
+		printf("File System Status: \n"); // print header
+		printf("# of free blocks: %d (%d bytes), # of free inodes: %d\n", superBlock.freeBlockCount, superBlock.freeBlockCount*512, superBlock.freeInodeCount); // print free blocks and inodes
+} // fs_stat
 
 int hard_link(char *src, char *dest)
 {
