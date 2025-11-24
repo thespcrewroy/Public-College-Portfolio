@@ -2,13 +2,18 @@ CRAG Clustering Implementation - Summary Report
 ============================================================
 
 Dataset: Amazon Unlocked Mobile Reviews
-Clustering Algorithm: K-Means (k=4)
+Clustering Algorithm: K-Means (k=2)
 Embedding Model: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
 
+K Selection Method:
+  Used Elbow Method + Silhouette Score to determine optimal k
+  Optimal k for our dataset: 2
+  CRAG paper used: k=4 (not optimal for all datasets!)
+
 Results:
-  Total products clustered: 2,159
-  Total reviews clustered: 398,704
-  Total clusters created: 8,636
-  Average silhouette score: 0.1250
-  Data reduction: 97.83%
-  Compression ratio: 46.17x
+  Total products clustered: 34
+  Total reviews clustered: 6,400
+  Total clusters created: 68
+  Average silhouette score: 0.1783
+  Data reduction: 98.94%
+  Compression ratio: 94.12x
