@@ -1,3 +1,10 @@
+/**
+ * Copyright (c) 2025 Sami Menik, PhD. All rights reserved.
+ * 
+ * Unauthorized copying of this file, via any medium, is strictly prohibited.
+ * This software is provided "as is," without warranty of any kind.
+ */
+
 package uga.csx370.mydbimpl;
 
 import java.util.ArrayList;
@@ -12,8 +19,17 @@ import uga.csx370.mydb.Relation;
 import uga.csx370.mydb.RelationBuilder;
 import uga.csx370.mydb.Type;
 
+/*
+* {@code RAImpl}  implements the {@code uga.csx370.mydb.RA} interface, providing 
+* concrete implementations of relational algebra operations such as select, project,
+* union, intersect, difference, rename, cartesian product, and join.
+*/
 public class RAImpl implements RA {
 
+    /*
+     * The select method takes a relation and a predicate, and returns a new relation
+     * containing only the rows from the input relation that satisfy the predicate.
+     */
     @Override
     public Relation select(Relation rel, Predicate p) {
         Relation result = new RelationBuilder()
@@ -23,14 +39,17 @@ public class RAImpl implements RA {
 
         for (int i = 0; i < rel.getSize(); i++) {
             List<Cell> row = rel.getRow(i);
-            if (p.check(row)) {
-                result.insert(row);
-            }
-        }
+            if (p.check(row)) { // if the predicate is satisfied
+                result.insert(row); // insert the row into the result relation
+            } // for
+        } // for
 
         return result;
-    }
+    } // select
 
+    /*
+     * The project method takes a relation and a list of attribute names, and returns a new relation
+     */
     @Override
     public Relation project(Relation rel, List<String> attrs) {
         for (String attr : attrs) {
