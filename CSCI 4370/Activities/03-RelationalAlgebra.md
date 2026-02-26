@@ -33,7 +33,7 @@ CSFJoin   = CS JOIN[CS.StudentID==FEnroll.StudentID] FEnroll
 Ans2      = PROJECT[StudentID, FName, LName](CSFJoin)
 ```
 
-Professors who teach students doing computer science major. The query result should have ProfessorID, FName, LName.
+Q) **Professors who teach students doing computer science major. The query result should have ProfessorID, FName, LName.**
 
 ```
 CS        = SELECT[Major=="computer science"](Students)
@@ -43,7 +43,7 @@ CSP       = CSTeach JOIN[CSTeach.ProfessorID==Professors.ProfessorID] Professors
 Ans3      = PROJECT[ProfessorID, FName, LName](CSP)
 ```
 
-Names of courses that offer the maximum number of credits.
+Q) **Names of courses that offer the maximum number of credits.**
 
 ```
 C1 = RENAME[C1](Courses) # compare courses against other courses
