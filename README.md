@@ -31,3 +31,10 @@
 - **_Special Topics in Deep Learning [(CSCI 4900)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204900)_**
 
 ---
+## Junior Year
+- **_Computer Architecture and Organization [(CSCI 4720)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204720)_**
+- **_Operating Systems [(CSCI 4730)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204730)_**
+- **_Introduction to Computer Forensics[(CSCI 4270)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204270)_**
+- **_Data Mining[(CSCI 4380)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204380)_**
+- **_Database Management[(CSCI 4370)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204370)_**
+
