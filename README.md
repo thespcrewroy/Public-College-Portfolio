@@ -26,7 +26,7 @@
 - **_Applied Linear Algebra [(MATH 3300)](https://github.com/thespcrewroy/Public-College/tree/main/MATH%203300)_**
 - **_Introduction to Personal Finance [(FHCE 3200)](https://github.com/thespcrewroy/Public-College/tree/main/FHCE%203200)_**
 - **_Data Structures (CSCI 2720) (Private)_**
-- **_Data Structures (CSCI 2670) (Private)_**
+- **_Theory of Computing (CSCI 2670) (Private)_**
 - **_Innovation Catalyst & Design [(IDEA 4000)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/IDEA%204000)_**
 - **_Special Topics in Deep Learning [(CSCI 4900)](https://github.com/thespcrewroy/Public-College-Portfolio/tree/main/CSCI%204900)_**
 
